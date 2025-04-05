@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opportunity Finder</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            overflow-x: hidden;
+        }
+        
+        .chat-message {
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-message.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .typing-indicator span {
+            animation: blink 1.4s infinite both;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes blink {
+            0% { opacity: 0.1; }
+            20% { opacity: 1; }
+            100% { opacity: 0.1; }
+        }
+        
+        .bg-gradient {
+            background: linear-gradient(to right, #6366f1, #8b5cf6);
+        }
+        
+        .chat-container {
+            max-height: 60vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+        
+        .chat-container::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        .chat-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5);
+            border-radius: 20px;
+        }
+        
+        .input-form {
+            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.03);
+        }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        .profile-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .profile-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div id="canvas-container"></div>
+    
+    <div class="container mx-auto px-4 py-8 relative">
+        <div class="max-w-4xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient">OpportunityAI</h1>
+                <p class="text-gray-600 mt-2">Personalized opportunity finder and assistance</p>
+            </div>
+            
+            <!-- Profile card -->
+            <div id="profile-section" class="profile-card bg-white rounded-xl shadow-lg p-6 mb-6 transition-all">
+                <div class="flex items-center mb-4">
+                    <div class="w-16 h-16 rounded-full bg-gradient flex items-center justify-center text-white font-bold text-xl">
+                        <span id="profile-initials">JD</span>
+                    </div>
+                    <div class="ml-4">
+                        <h2 class="text-xl font-semibold" id="profile-name">John Doe</h2>
+                        <p class="text-gray-500" id="profile-title">Software Developer</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-500">Experience</h3>
+                        <p class="font-medium" id="profile-experience">5 years</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-500">Top Skill</h3>
+                        <p class="font-medium" id="profile-skill">JavaScript</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-500">Looking For</h3>
+                        <p class="font-medium" id="profile-goal">Remote Position</p>
+                    </div>
+                </div>
+                <button id="update-profile" class="mt-6 bg-gradient text-white px-4 py-2 rounded-lg shadow hover:opacity-90 transition-opacity">Update Profile</button>
+            </div>
+            
+            <!-- Chat section -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="p-4 bg-gradient">
+                    <h2 class="text-white font-semibold">Opportunity Assistant</h2>
+                </div>
+                
+                <div id="chat-container" class="chat-container p-4 space-y-4">
+                    <!-- Welcome message -->
+                    <div class="chat-message bot-message show">
+                        <div class="flex items-start">
+                            <div class="w-8 h-8 rounded-full bg-gradient flex items-center justify-center text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M6 13c0 1.105-1.12 2-2.5 2S1 14.105 1 13s1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                                    <path d="M11 4c0 1.105-1.12 2-2.5 2S6 5.105 6 4s1.12-2 2.5-2S11 2.895 11 4z"/>
+                                    <path d="M13 13c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                                    <path d="M6 8c0 1.105-1.12 2-2.5 2S1 9.105 1 8s1.12-2 2.5-2S6 6.895 6 8z"/>
+                                </svg>
+                            </div>
+                            <div class="ml-3 bg-gray-100 rounded-lg p-3 max-w-md">
+                                <p>Welcome to OpportunityAI! I'm here to help you find personalized career opportunities and provide guidance. How can I assist you today?</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dynamic chat messages will be added here -->
+                </div>
+                
+                <!-- Input form -->
+                <div class="input-form p-4 border-t">
+                    <form id="chat-form" class="flex">
+                        <input id="user-input" type="text" placeholder="Type your question or request..." class="flex-1 border border-gray-300 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                        <button type="submit" class="bg-gradient text-white px-4 py-2 rounded-r-lg hover:opacity-90 transition-opacity">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Opportunities section -->
+            <div id="opportunities-section" class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Opportunity cards will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialog modal for profile update -->
+    <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl p-6 max-w-lg w-full">
+            <h2 class="text-xl font-bold mb-4">Update Your Profile</h2>
+            <form id="profile-form">
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <input type="text" id="input-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Professional Title</label>
+                        <input type="text" id="input-title" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+                        <input type="number" id="input-experience" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Top Skill</label>
+                        <input type="text" id="input-skill" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Looking For</label>
+                        <input type="text" id="input-goal" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" id="cancel-profile" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-gradient text-white rounded-lg hover:opacity-90">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 3D Background Effect
+        const initBackground = () => {
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Create particles
+            const particlesGeometry = new THREE.BufferGeometry();
+            const particlesCount = 100;
+            const posArray = new Float32Array(particlesCount * 3);
+            
+            for (let i = 0; i < particlesCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 30;
+            }
+            
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            
+            // Material
+            const particlesMaterial = new THREE.PointsMaterial({
+                size: 0.05,
+                color: 0x6366f1,
+                transparent: true,
+                opacity: 0.5
+            });
+            
+            // Mesh
+            const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+            scene.add(particlesMesh);
+            
+            camera.position.z = 5;
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            // Animation
+            const animate = () => {
+                requestAnimationFrame(animate);
+                particlesMesh.rotation.x += 0.0005;
+                particlesMesh.rotation.y += 0.0005;
+                renderer.render(scene, camera);
+            };
+            
+            animate();
+        };
+        
+        // Initialize the background
+        initBackground();
+        
+        // Chat functionality
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const opportunitiesSection = document.getElementById('opportunities-section');
+        
+        // Sample bot responses
+        const botResponses = {
+            default: "I'm not sure I understand. Could you provide more details about what you're looking for?",
+            greeting: ["Hello! How are you today?", "Hi there! How can I help with your career search?", "Welcome! What kind of opportunities are you interested in?"],
+            job: ["Based on your profile, I found some job opportunities that might interest you. Let me show you some options.", "I've discovered several positions that match your skills. Would you like me to recommend the top ones?"],
+            skills: ["Looking at your background, I'd recommend focusing on these skills to enhance your profile: JavaScript frameworks, Cloud computing, and Data visualization.", "To improve your marketability, consider developing these skills: Project management, Technical writing, and API design."],
+            interview: ["When preparing for interviews, focus on showcasing your problem-solving skills with specific examples from past experiences.", "For technical interviews, review algorithms and data structures, and practice explaining your thought process clearly."],
+            resume: ["To improve your resume, highlight measurable achievements rather than just listing responsibilities.", "Consider adding a skills section prominently on your resume to showcase your technical expertise."],
+            networking: ["Networking is crucial. Try reaching out to professionals in your target companies through LinkedIn.", "Consider attending industry meetups and conferences to expand your professional network."]
+        };
+        
+        // Sample opportunities data
+        const opportunities = [
+            {
+                title: "Senior Frontend Developer",
+                company: "TechVision Inc.",
+                location: "Remote",
+                salary: "$120,000 - $150,000",
+                match: 95,
+                skills: ["JavaScript", "React", "TypeScript", "CSS"]
+            },
+            {
+                title: "Full Stack Engineer",
+                company: "GrowthWave",
+                location: "New York, NY",
+                salary: "$130,000 - $160,000",
+                match: 88,
+                skills: ["JavaScript", "Node.js", "MongoDB", "React"]
+            },
+            {
+                title: "UI/UX Developer",
+                company: "Creative Solutions",
+                location: "Remote",
+                salary: "$110,000 - $140,000",
+                match: 85,
+                skills: ["JavaScript", "CSS", "Figma", "User Experience"]
+            },
+            {
+                title: "JavaScript Architect",
+                company: "Enterprise Systems",
+                location: "San Francisco, CA",
+                salary: "$150,000 - $180,000",
+                match: 82,
+                skills: ["JavaScript", "Architecture", "Performance", "Security"]
+            }
+        ];
+        
+        // Add a bot message
+        const addBotMessage = (message) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message bot-message';
+            messageDiv.innerHTML = `
+                <div class="flex items-start">
+                    <div class="w-8 h-8 rounded-full bg-gradient flex items-center justify-center text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M6 13c0 1.105-1.12 2-2.5 2S1 14.105 1 13s1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                            <path d="M11 4c0 1.105-1.12 2-2.5 2S6 5.105 6 4s1.12-2 2.5-2S11 2.895 11 4z"/>
+                            <path d="M13 13c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                            <path d="M6 8c0 1.105-1.12 2-2.5 2S1 9.105 1 8s1.12-2 2.5-2S6 6.895 6 8z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3 bg-gray-100 rounded-lg p-3 max-w-md">
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            
+            // Show message with animation
+            setTimeout(() => {
+                messageDiv.classList.add('show');
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 100);
+        };
+        
+        // Add a user message
+        const addUserMessage = (message) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message user-message';
+            messageDiv.innerHTML = `
+                <div class="flex items-start justify-end">
+                    <div class="mr-3 bg-indigo-100 rounded-lg p-3 max-w-md">
+                        <p>${message}</p>
+                    </div>
+                    <div class="w-8 h-8 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-500 font-bold">
+                        ${document.getElementById('profile-initials').textContent}
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            
+            // Show message with animation
+            setTimeout(() => {
+                messageDiv.classList.add('show');
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 100);
+        };
+        
+        // Add typing indicator
+        const addTypingIndicator = () => {
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-message bot-message typing-indicator show';
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = `
+                <div class="flex items-start">
+                    <div class="w-8 h-8 rounded-full bg-gradient flex items-center justify-center text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M6 13c0 1.105-1.12 2-2.5 2S1 14.105 1 13s1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                            <path d="M11 4c0 1.105-1.12 2-2.5 2S6 5.105 6 4s1.12-2 2.5-2S11 2.895 11 4z"/>
+                            <path d="M13 13c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/>
+                            <path d="M6 8c0 1.105-1.12 2-2.5 2S1 9.105 1 8s1.12-2 2.5-2S6 6.895 6 8z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3 bg-gray-100 rounded-lg p-3">
+                        <p class="typing-indicator">
+                            <span>.</span><span>.</span><span>.</span>
+                        </p>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            return typingDiv;
+        };
+        
+        // Create opportunity card
+        const createOpportunityCard = (opportunity) => {
+            const card = document.createElement('div');
+            card.className = 'profile-card bg-white rounded-xl shadow-lg p-5 flex flex-col';
+            
+            // Match badge color based on percentage
+            let matchColor = 'bg-green-500';
+            if (opportunity.match < 85) {
+                matchColor = 'bg-yellow-500';
+            } else if (opportunity.match < 75) {
+                matchColor = 'bg-orange-500';
+            }
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <h3 class="text-lg font-semibold">${opportunity.title}</h3>
+                    <span class="${matchColor} text-white text-xs px-2 py-1 rounded-full">${opportunity.match}% Match</span>
+                </div>
+                <p class="text-gray-600 mt-1">${opportunity.company}</p>
+                <div class="flex items-center text-gray-500 text-sm mt-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="mr-1">
+                        <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                    </svg>
+                    ${opportunity.location}
+                </div>
+                <div class="flex items-center text-gray-500 text-sm mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="mr-1">
+                        <path d="M4 10.781c.148 1.667 1.513 2.85 3.591 3.003V15h1.043v-1.216c2.27-.179 3.678-1.438 3.678-3.3 0-1.59-.947-2.51-2.956-3.028l-.722-.187V3.467c1.122.11 1.879.714 2.07 1.616h1.47c-.166-1.6-1.54-2.748-3.54-2.875V1H7.591v1.233c-1.939.23-3.27 1.472-3.27 3.156 0 1.454.966 2.483 2.661 2.917l.61.162v4.031c-1.149-.17-1.94-.8-2.131-1.718H4zm3.391-3.836c-1.043-.263-1.6-.825-1.6-1.616 0-.944.704-1.641 1.8-1.828v3.495l-.2-.05zm1.591 1.872c1.287.323 1.852.859 1.852 1.769 0 1.097-.826 1.828-2.2 1.939V8.73l.348.086z"/>
+                    </svg>
+                    ${opportunity.salary}
+                </div>
+                <div class="flex flex-wrap gap-2 mt-4">
+                    ${opportunity.skills.map(skill => `<span class="bg-indigo-50 text-indigo-600 text-xs px-2 py-1 rounded">${skill}</span>`).join('')}
+                </div>
+                <div class="mt-auto pt-4">
+                    <button class="w-full bg-gradient text-white py-2 rounded-lg hover:opacity-90 transition-opacity">Apply Now</button>
+                </div>
+            `;
+            return card;
+        };
+        
+        // Display opportunities
+        const displayOpportunities = () => {
+            opportunitiesSection.innerHTML = '';
+            
+            const heading = document.createElement('div');
+            heading.className = 'col-span-full mb-2';
+            heading.innerHTML = '<h2 class="text-xl font-bold">Recommended Opportunities</h2>';
+            opportunitiesSection.appendChild(heading);
+            
+            opportunities.forEach(opportunity => {
+                opportunitiesSection.appendChild(createOpportunityCard(opportunity));
+            });
+        };
+        
+        // Process user message
+        const processMessage = (message) => {
+            message = message.toLowerCase().trim();
+            
+            // Simple keyword matching for demo purposes
+            if (message.includes('hello') || message.includes('hi') || message.includes('hey')) {
+                return botResponses.greeting[Math.floor(Math.random() * botResponses.greeting.length)];
+            } else if (message.includes('job') || message.includes('work') || message.includes('position') || message.includes('opportunity')) {
+                setTimeout(() => displayOpportunities(), 1000);
+                return botResponses.job[Math.floor(Math.random() * botResponses.job.length)];
+            } else if (message.includes('skill') || message.includes('learn') || message.includes('improve')) {
+                return botResponses.skills[Math.floor(Math.random() * botResponses.skills.length)];
+            } else if (message.includes('interview') || message.includes('prepare')) {
+                return botResponses.interview[Math.floor(Math.random() * botResponses.interview.length)];
+            } else if (message.includes('resume') || message.includes('cv')) {
+                return botResponses.resume[Math.floor(Math.random() * botResponses.resume.length)];
+            } else if (message.includes('network') || message.includes('connect')) {
+                return botResponses.networking[Math.floor(Math.random() * botResponses.networking.length)];
+            } else {
+                return botResponses.default;
+            }
+        };
+        
+        // Handle form submission
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            
+            if (message) {
+                // Add user message
+                addUserMessage(message);
+                userInput.value = '';
+                
+                // Show typing indicator
+                const typingIndicator = addTypingIndicator();
+                
+                // Process message with a delay for realistic typing effect
+                setTimeout(() => {
+                    // Remove typing indicator
+                    typingIndicator.remove();
+                    
+                    // Add bot response
+                    const response = processMessage(message);
+                    addBotMessage(response);
+                }, 1000 + Math.random() * 1000);
+            }
+        });
+        
+        // Profile update functionality
+        const profileModal = document.getElementById('profile-modal');
+        const updateProfileBtn = document.getElementById('update-profile');
+        const cancelProfileBtn = document.getElementById('cancel-profile');
+        const profileForm = document.getElementById('profile-form');
+        
+        // Show profile modal
+        updateProfileBtn.addEventListener('click', () => {
+            // Populate current values
+            document.getElementById('input-name').value = document.getElementById('profile-name').textContent;
+            document.getElementById('input-title').value = document.getElementById('profile-title').textContent;
+            document.getElementById('input-experience').value = document.getElementById('profile-experience').textContent.replace(' years', '');
+            document.getElementById('input-skill').value = document.getElementById('profile-skill').textContent;
+            document.getElementById('input-goal').value = document.getElementById('profile-goal').textContent;
+            
+            profileModal.classList.remove('hidden');
+        });
+        
+        // Hide profile modal
+        cancelProfileBtn.addEventListener('click', () => {
+            profileModal.classList.add('hidden');
+        });
+        
+        // Handle profile form submission
+        profileForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            // Update profile data
+            const name = document.getElementById('input-name').value;
+            const title = document.getElementById('input-title').value;
+            const experience = document.getElementById('input-experience').value;
+            const skill = document.getElementById('input-skill').value;
+            const goal = document.getElementById('input-goal').value;
+            
+            // Update profile card
+            document.getElementById('profile-name').textContent = name;
+            document.getElementById('profile-title').textContent = title;
+            document.getElementById('profile-experience').textContent = experience + ' years';
+            document.getElementById('profile-skill').textContent = skill;
+            document.getElementById('profile-goal').textContent = goal;
+            
+            // Update initials
+            const nameParts = name.split(' ');
+            const initials = nameParts.length > 1 
+                ? (nameParts[0][0] + nameParts[1][0]).toUpperCase() 
+                : name.substring(0, 2).toUpperCase();
+            document.getElementById('profile-initials').textContent = initials;
+            
+            // Hide modal
+            profileModal.classList.add('hidden');
+            
+            // Show confirmation message
+            addBotMessage("I've updated your profile! Now I can provide more personalized opportunities based on your information.");
+            
+            // Update opportunities after profile update
+            setTimeout(() => {
+                displayOpportunities();
+            }, 1000);
+        });
+        
+        // Initialize opportunities after a delay
+        setTimeout(() => {
+            addBotMessage("Based on your profile, I've found some opportunities that might interest you. Take a look below!");
+            displayOpportunities();
+        }, 2000);
+        
+        // Add pulse animation to chat input
+        setTimeout(() => {
+            userInput.classList.add('pulse');
+            setTimeout(() => {
+                userInput.classList.remove('pulse');
+            }, 3000);
+        }, 4000);
+    </script>
+</body>
+</html>
